@@ -12,9 +12,6 @@ try:
     from typing import Dict
 except ImportError: pass
 
-import classad
-import htcondor
-
 from flask import Flask
 from flask_restful import Resource, Api, abort, reqparse
 
@@ -22,17 +19,6 @@ import utils
 
 app = Flask(__name__)
 api = Api(app)
-
-
-def deep_lcasekeys(dictish):
-    # type: (Dict) -> Dict
-    transformed_dict = dict()
-    for k, v in dictish.items():
-        k = k.lower()
-        if isinstance(v, dict):
-            v = deep_lcasekeys(v)
-        transformed_dict[k] = v
-    return transformed_dict
 
 
 def validate_attribute(attribute):
@@ -89,7 +75,7 @@ class JobsBaseResource(Resource):
             if attribute:
                 return ad[attribute]
             job_data = dict()
-            job_data["classad"] = deep_lcasekeys(json.loads(ad.printJson()))
+            job_data["classad"] = utils.deep_lcasekeys(json.loads(ad.printJson()))
             job_data["jobid"] = "%s.%s" % (ad["clusterid"], ad["procid"])
             data.append(job_data)
         return data
