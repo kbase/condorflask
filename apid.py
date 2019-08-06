@@ -8,6 +8,9 @@ configuration, and machine status.
 import re
 import subprocess
 import json
+try:
+    from typing import Dict
+except ImportError: pass
 
 import classad
 import htcondor
@@ -19,6 +22,17 @@ import utils
 
 app = Flask(__name__)
 api = Api(app)
+
+
+def deep_lcasekeys(dictish):
+    # type: (Dict) -> Dict
+    transformed_dict = dict()
+    for k, v in dictish.items():
+        k = k.lower()
+        if isinstance(v, dict):
+            v = deep_lcasekeys(v)
+        transformed_dict[k] = v
+    return transformed_dict
 
 
 def validate_attribute(attribute):
@@ -53,20 +67,20 @@ class JobsBaseResource(Resource):
         if attribute:
             if not validate_attribute(attribute):
                 abort(400, message="Invalid attribute")
-            projection = set([attribute])
+            projection = [attribute, "clusterid", "procid"]
         elif projection:
             if not validate_projection(projection):
                 abort(400, message="Invalid projection: must be a comma-separated list of classad attributes")
             projection = set(projection.split(","))
+            projection.add("clusterid")
+            projection.add("procid")
+        else:
+            projection = set()
 
-        projection.add("clusterid")
-        projection.add("procid")
-
-        # TODO EC
         if self.querytype == "history":
-            classads = schedd.history(requirements=requirements, projection=projection)
+            classads = schedd.history(requirements=requirements, projection=list(projection))
         elif self.querytype == "xquery":
-            classads = schedd.xquery(requirements=requirements, projection=projection)
+            classads = schedd.xquery(requirements=requirements, projection=list(projection))
         else:
             assert False, "Invalid querytype %r" % self.querytype
 
@@ -75,8 +89,9 @@ class JobsBaseResource(Resource):
             if attribute:
                 return ad[attribute]
             job_data = dict()
-            job_data["classad"] = json.loads(classad.printJson(ad))
+            job_data["classad"] = deep_lcasekeys(json.loads(ad.printJson()))
             job_data["jobid"] = "%s.%s" % (ad["clusterid"], ad["procid"])
+            data.append(job_data)
         return data
 
     def get(self, clusterid=None, procid=None, attribute=None):
