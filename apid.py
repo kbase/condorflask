@@ -9,9 +9,13 @@ import re
 import subprocess
 import json
 
+import classad
+import htcondor
+
 from flask import Flask
 from flask_restful import Resource, Api, abort, reqparse
 
+import utils
 
 app = Flask(__name__)
 api = Api(app)
@@ -34,42 +38,45 @@ class JobsBaseResource(Resource):
     information. This class must be overridden to specify `executable`.
 
     """
-    executable = ""
+    querytype = None
 
     def query(self, clusterid, procid, constraint, projection, attribute):
-        if not self.executable:
-            raise ValueError("Need to override executable")
-
-        cmd = [self.executable, "-json"]
-        if clusterid is not None:
-            x = "%d" % clusterid
-            if procid is not None:
-                x += ".%d" % procid
-            cmd.append(x)
-
+        schedd = utils.get_schedd()
+        requirements = "true"
+        if clusterid:
+            requirements += " && clusterid==\"%d\"" % clusterid
+        if procid:
+            requirements += " && procid==\"%d\"" % procid
         if constraint:
-            cmd.extend(["-constraint", constraint])
+            requirements += " && %s" % constraint
 
         if attribute:
             if not validate_attribute(attribute):
                 abort(400, message="Invalid attribute")
-            cmd.extend(["-attributes", attribute])
+            projection = set([attribute])
         elif projection:
             if not validate_projection(projection):
                 abort(400, message="Invalid projection: must be a comma-separated list of classad attributes")
-            cmd.extend(["-attributes", projection + ",clusterid,procid"])
+            projection = set(projection.split(","))
 
-        classads = self._run_cmd(cmd)
+        projection.add("clusterid")
+        projection.add("procid")
 
-        if attribute:
-            data = classads[0][attribute]
-            return data
+        # TODO EC
+        if self.querytype == "history":
+            classads = schedd.history(requirements=requirements, projection=projection)
+        elif self.querytype == "xquery":
+            classads = schedd.xquery(requirements=requirements, projection=projection)
+        else:
+            assert False, "Invalid querytype %r" % self.querytype
+
         data = []
         for ad in classads:
+            if attribute:
+                return ad[attribute]
             job_data = dict()
-            job_data["classad"] = {k.lower(): v for k, v in ad.items()}
-            job_data["jobid"] = "%s.%s" % (job_data["classad"]["clusterid"], job_data["classad"]["procid"])
-            data.append(job_data)
+            job_data["classad"] = json.loads(classad.printJson(ad))
+            job_data["jobid"] = "%s.%s" % (ad["clusterid"], ad["procid"])
         return data
 
     def get(self, clusterid=None, procid=None, attribute=None):
@@ -79,24 +86,6 @@ class JobsBaseResource(Resource):
         args = parser.parse_args()
         return self.query(clusterid, procid, projection=args.projection, constraint=args.constraint,
                           attribute=attribute)
-
-    def _run_cmd(self, cmd):
-        completed = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if completed.returncode != 0:
-            # lazy
-            abort(400, message=completed.stderr)
-
-        if not completed.stdout.strip():
-            abort(404, message="No job(s) found")
-        try:
-            classads = json.loads(completed.stdout)
-            if not classads:
-                abort(404, message="No job(s) found")
-            return classads
-        except json.JSONDecodeError:
-            abort(400, message="Unparseable result from %s\n"
-                               "Output: %s\n"
-                               "Error: %s" % (self.executable, completed.stdout, completed.stderr))
 
 
 class V1JobsResource(JobsBaseResource):
@@ -133,7 +122,7 @@ class V1JobsResource(JobsBaseResource):
         matching the constraint.
 
     """
-    executable = "condor_q"
+    querytype = "xquery"
 
 
 class V1HistoryResource(JobsBaseResource):
@@ -170,7 +159,7 @@ class V1HistoryResource(JobsBaseResource):
         matching the constraint.
 
     """
-    executable = "condor_history"
+    querytype = "history"
 
 
 class V1StatusResource(Resource):
