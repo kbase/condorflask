@@ -42,4 +42,11 @@ def test_status(fixtures):
         r = checked_get("v1/status/" + daemon)
         j = r.json()
         for attr in ["name", "classad"]:
-            assert j[0].get(attr), "%s: %s attr missing"
+            assert j[0].get(attr), "%s: %s attr missing" % (daemon, attr)
+
+
+def test_history(fixtures):
+    r = checked_get("v1/history")
+    j = r.json()
+    for attr in ["classad", "jobid"]:
+        assert j[0].get(attr), "%s attr missing" % (attr)
