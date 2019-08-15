@@ -35,3 +35,11 @@ def checked_get(uri, params=None):
 def test_condor_version(fixtures):
     r = checked_get("v1/config/condor_version")
     assert re.search(r"\d+\.\d+\.\d+", r.text), "Unexpected condor_version"
+
+
+def test_status(fixtures):
+    for daemon in ["collector", "master", "negotiator", "schedd", "startd"]:
+        r = checked_get("v1/status/" + daemon)
+        j = r.json()
+        for attr in ["name", "classad"]:
+            assert j[0].get(attr), "%s: %s attr missing"

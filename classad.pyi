@@ -3,4 +3,5 @@
 
 from typing import Any
 
-class ClassAd(dict): ...
+class ClassAd(dict):
+    def printJson(self) -> str: ...

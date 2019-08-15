@@ -1,6 +1,8 @@
+import classad
 import htcondor
+import json
 try:
-    from typing import Dict, Any, Union
+    from typing import Dict, Any, Union, List
 except ImportError: pass
 
 
@@ -25,3 +27,10 @@ def deep_lcasekeys(dictish):
             v = deep_lcasekeys(v)
         transformed_dict[k] = v
     return transformed_dict
+
+
+def classads_to_dicts(classads):
+    # type: (List[classad.ClassAd]) -> List[Dict]
+    """Return a copy of a list of classads as a list of dicts, with all the keys lowercased, recursively."""
+    return [deep_lcasekeys(json.loads(ad.printJson()))
+            for ad in classads]

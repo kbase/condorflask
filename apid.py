@@ -8,9 +8,10 @@ configuration, and machine status.
 import re
 import json
 try:
-    from typing import Dict
+    from typing import Dict, List
 except ImportError: pass
 
+import classad
 import htcondor
 from htcondor import AdTypes, Collector, DaemonTypes, RemoteParam
 
@@ -73,11 +74,12 @@ class JobsBaseResource(Resource):
             assert False, "Invalid querytype %r" % self.querytype
 
         data = []
-        for ad in classads:
+        ad_dicts = utils.classads_to_dicts(classads)
+        for ad in ad_dicts:
             if attribute:
                 return ad[attribute]
             job_data = dict()
-            job_data["classad"] = utils.deep_lcasekeys(json.loads(ad.printJson()))
+            job_data["classad"] = ad
             job_data["jobid"] = "%s.%s" % (ad["clusterid"], ad["procid"])
             data.append(job_data)
         return data
@@ -231,18 +233,16 @@ class V1StatusResource(Resource):
                 abort(400, message="Invalid projection: must be a comma-separated list of classad attributes")
             projection = ",".split(args.projection)
 
-        classads = []
+        classads = []  # type: List[classad.ClassAd]
         try:
             classads = collector.query(ad_type, constraint=args.constraint, projection=projection)
         except RuntimeError as err:
             abort(400, message=str(err))  # LAZY
 
-        # lowercase all the keys
-        classads_lower = [{k.lower(): v for k, v in ad.items()} for ad in classads]
-
         data = [
             {"name": ad["name"],
-             "classad": ad} for ad in classads_lower
+             "classad": ad} for ad in
+                utils.classads_to_dicts(classads)
         ]
 
         return data
