@@ -6,13 +6,13 @@ Currently allows read-only queries for jobs (in-queue and historical),
 configuration, and machine status.
 """
 import re
-import subprocess
 import json
 try:
     from typing import Dict
 except ImportError: pass
 
-from htcondor import AdTypes, Collector
+import htcondor
+from htcondor import AdTypes, Collector, DaemonTypes, RemoteParam
 
 from flask import Flask
 from flask_restful import Resource, Api, abort, reqparse
@@ -271,41 +271,38 @@ class V1ConfigResource(Resource):
         Returns 404 if `attribute` is specified but the attribute is undefined.
 
     """
+    DAEMON_TYPES_MAP = {
+        "collector": DaemonTypes.Collector,
+        "master": DaemonTypes.Master,
+        "negotiator": DaemonTypes.Negotiator,
+        "schedd": DaemonTypes.Schedd,
+        "startd": DaemonTypes.Startd,
+    }
+
     def get(self, attribute=None):
         """GET handler"""
         parser = reqparse.RequestParser(trim=True)
-        parser.add_argument("daemon", choices=["master", "schedd", "startd", "collector", "negotiator"])
+        parser.add_argument("daemon", choices=list(self.DAEMON_TYPES_MAP.keys()))
         args = parser.parse_args()
 
-        cmd = ["condor_config_val", "-raw"]
         if args.daemon:
-            cmd.append("-%s" % args.daemon)
+            daemon_ad = Collector().locate(self.DAEMON_TYPES_MAP[args.daemon])
+            param = RemoteParam(daemon_ad)
+        else:
+            htcondor.reload_config()
+            param = htcondor.param
 
         if attribute:
             if not validate_attribute(attribute):
                 abort(400, message="Invalid attribute")
-            cmd.append(attribute)
-        else:
-            cmd.append("-dump")
-
-        completed = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if completed.returncode != 0:
-            # lazy
-            if re.search(r"^Not defined:", completed.stderr, re.MULTILINE):
-                abort(404, message=completed.stderr)
-            else:
-                abort(400, message=completed.stderr)
 
         if attribute:
-            return completed.stdout.rstrip("\n")
-        else:
-            data = {}
-            for line in completed.stdout.split("\n"):
-                if line.startswith("#"): continue
-                if " = " not in line: continue
-                key, value = line.split(" = ", 1)
-                data[key.lower()] = value
-            return data
+            try:
+                return param[attribute]
+            except KeyError as err:
+                abort(404, message=str(err))
+
+        return utils.deep_lcasekeys(param)
 
 
 api.add_resource(V1JobsResource,

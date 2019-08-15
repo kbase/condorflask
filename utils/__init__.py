@@ -1,6 +1,6 @@
 import htcondor
 try:
-    from typing import Dict, Any
+    from typing import Dict, Any, Union
 except ImportError: pass
 
 
@@ -16,7 +16,7 @@ def get_schedd(pool=None, schedd_name=None):
 
 
 def deep_lcasekeys(dictish):
-    # type: (Dict[str, Any]) -> Dict
+    # type: (Union[Dict[str, Any],htcondor.RemoteParam, htcondor._Param]) -> Dict
     """Return a copy of a dictionary with all the keys lowercased, recursively."""
     transformed_dict = dict()
     for k, v in dictish.items():
