@@ -47,9 +47,9 @@ class JobsBaseResource(Resource):
         schedd = utils.get_schedd()
         requirements = "true"
         if clusterid:
-            requirements += " && clusterid==\"%d\"" % clusterid
+            requirements += " && clusterid==%d" % clusterid
         if procid:
-            requirements += " && procid==\"%d\"" % procid
+            requirements += " && procid==%d" % procid
         if constraint:
             requirements += " && %s" % constraint
 
