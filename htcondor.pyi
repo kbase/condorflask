@@ -41,6 +41,17 @@ class DaemonTypes:
     Credd: Any
 
 
+class JobAction:
+    Hold: Any
+    Release: Any
+    Suspend: Any
+    Continue: Any
+    Remove: Any
+    RemoveX: Any
+    Vacate: Any
+    VacateFast: Any
+
+
 class _Param: ...
 
 
@@ -58,7 +69,15 @@ class RemoteParam:
 
 class Schedd:
     def __init__(self, location_ad:Optional[classad.ClassAd]=...): ...
+    def act(self, action:JobAction, job_spec:Union[List[str], str], reason:str=...) -> classad.ClassAd: ...
+    def transaction(self) -> Transaction: ...
 
+
+class Submit(dict):
+    def queue(self, txn:Transaction) -> int: ...
+
+
+class Transaction: ...
 
 param: _Param
 

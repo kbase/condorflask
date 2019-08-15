@@ -54,12 +54,7 @@ def check_job_attrs(job):
         assert job.get(attr), "%s attr missing" % attr
 
 
-def test_history(fixtures):
-    j = checked_get_json("v1/history")
-    check_job_attrs(j[0])
-
-
-def submit_job():
+def submit_sleep_job():
     """Submit a sleep job and return the cluster ID"""
     sub = htcondor.Submit({
         "Executable": "/usr/bin/sleep",
@@ -77,9 +72,14 @@ def rm_cluster(cluster_id):
 
 
 def test_jobs(fixtures):
-    cluster_id = submit_job()
+    cluster_id = submit_sleep_job()
     queries = ["v1/jobs", "v1/jobs/%d" % cluster_id, "v1/jobs/%d/0" % cluster_id]
     for q in queries:
         j = checked_get_json(q)
         check_job_attrs(j[0])
     rm_cluster(cluster_id)
+
+    queries = ["v1/history", "v1/history/%d" % cluster_id, "v1/history/%d/0" % cluster_id]
+    for q in queries:
+        j = checked_get_json(q)
+        check_job_attrs(j[0])
