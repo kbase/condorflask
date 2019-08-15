@@ -12,6 +12,8 @@ try:
     from typing import Dict
 except ImportError: pass
 
+from htcondor import AdTypes, Collector
+
 from flask import Flask
 from flask_restful import Resource, Api, abort, reqparse
 
@@ -168,7 +170,7 @@ class V1StatusResource(Resource):
 
     This implements the following endpoint:
 
-        GET /v1/status{/name}{?projection,constraint,query}
+        GET /v1/status{?projection,constraint,query}
 
         This returns an array of objects of the following form:
 
@@ -178,7 +180,7 @@ class V1StatusResource(Resource):
             }
 
         `name` is a specific host or slot to query.  If not specified, all
-        matching ads are returned.
+        matching ads are returned. (TODO Unimplemented)
 
         `query` is the type of ad to query; see the "Query options" in the
         condor_status(1) manpage.  "startd" is the default.
@@ -194,54 +196,46 @@ class V1StatusResource(Resource):
         matching the constraint.
 
     """
+    AD_TYPES_MAP = {
+        "accounting": AdTypes.Accounting,
+        "any": AdTypes.Any,
+        "collector": AdTypes.Collector,
+        "credd": AdTypes.Credd,
+        "defrag": AdTypes.Defrag,
+        "generic": AdTypes.Generic,
+        "grid": AdTypes.Grid,
+        "had": AdTypes.HAD,
+        "license": AdTypes.License,
+        "master": AdTypes.Master,
+        "negotiator": AdTypes.Negotiator,
+        "schedd": AdTypes.Schedd,
+        "startd": AdTypes.Startd,
+        "submitter": AdTypes.Submitter,
+    }
+
     def get(self, name=None):
         """GET handler"""
+        # TODO Do something with `name`
         parser = reqparse.RequestParser(trim=True)
         parser.add_argument("projection", default="")
         parser.add_argument("constraint", default="")
-        parser.add_argument("query", choices=[
-            "absent", "avail", "ckptsrvr", "claimed", "cod", "collector",
-            "data", "defrag", "java", "vm", "license", "master", "grid",
-            "run", "schedd", "server", "startd", "generic", "negotiator",
-            "storage", "any", "state", "submitters"
-        ])
+        parser.add_argument("query", choices=list(self.AD_TYPES_MAP.keys()), default="any")
         args = parser.parse_args()
 
-        cmd = ["condor_status", "-json"]
+        collector = Collector()
+        ad_type = self.AD_TYPES_MAP[args.query]
+        projection = []
 
-        if name:
-            cmd.append(name)
-
-        if args.query:
-            cmd.append("-%s" % args.query)
-
-        if args.constraint:
-            cmd.extend(["-constraint", args.constraint])
         if args.projection:
             if not validate_projection(args.projection):
                 abort(400, message="Invalid projection: must be a comma-separated list of classad attributes")
-            cmd.extend(["-attributes", args.projection + ",name"])
+            projection = ",".split(args.projection)
 
-        completed = subprocess.run(cmd, capture_output=True, encoding="utf-8")
-        if completed.returncode != 0:
-            # lazy
-            if re.search(r"^condor_status: unknown host", completed.stderr, re.MULTILINE):
-                abort(404, message=completed.stderr)
-            else:
-                abort(400, message=completed.stderr)
-
-        if not completed.stdout.strip():
-            abort(404, message="No ad(s) found")
-        classads = {}
+        classads = []
         try:
-            classads = json.loads(completed.stdout)
-            if not classads:
-                abort(404, message="No ad(s) found")
-            return classads
-        except json.JSONDecodeError:
-            abort(400, message="Unparseable result from %s\n"
-                               "Output: %s\n"
-                               "Error: %s" % (self.executable, completed.stdout, completed.stderr))
+            classads = collector.query(ad_type, constraint=args.constraint, projection=projection)
+        except RuntimeError as err:
+            abort(400, message=str(err))  # LAZY
 
         # lowercase all the keys
         classads_lower = [{k.lower(): v for k, v in ad.items()} for ad in classads]
