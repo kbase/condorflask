@@ -1,5 +1,5 @@
 # -*- coding=utf-8 -*-
-"""*** apid.py ***
+"""*** condor_restd.py ***
 Proof-of-concept REST-based API for HTCondor, based on the command-line tools.
 
 Currently allows read-only queries for jobs (in-queue and historical),

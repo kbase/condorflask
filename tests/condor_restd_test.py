@@ -72,19 +72,19 @@ def rm_cluster(cluster_id):
     schedd.act(htcondor.JobAction.Remove, "ClusterId == %d" % cluster_id)
 
 
+def _test_jobs_queries(cluster_id, endpoint):
+    queries = ["v1/%s" % endpoint,
+               "v1/%s/%d" % (endpoint, cluster_id),
+               "v1/%s/%d/0" % (endpoint, cluster_id)]
+    for q in queries:
+        j = checked_get_json(q)
+        check_job_attrs(j[0])
+    j = checked_get_json("v1/%s/%d/0/cmd" % (endpoint, cluster_id))
+    assert j == "/usr/bin/sleep", "%s: cmd attribute does not match" % endpoint
+
+
 def test_jobs(fixtures):
     cluster_id = submit_sleep_job()
-    queries = ["v1/jobs", "v1/jobs/%d" % cluster_id, "v1/jobs/%d/0" % cluster_id]
-    for q in queries:
-        j = checked_get_json(q)
-        check_job_attrs(j[0])
-    j = checked_get_json("v1/jobs/%d/0/cmd" % cluster_id)
-    assert j == "/usr/bin/sleep", "cmd attribute does not match"
+    _test_jobs_queries(cluster_id, "jobs")
     rm_cluster(cluster_id)
-
-    queries = ["v1/history", "v1/history/%d" % cluster_id, "v1/history/%d/0" % cluster_id]
-    for q in queries:
-        j = checked_get_json(q)
-        check_job_attrs(j[0])
-    j = checked_get_json("v1/history/%d/0/cmd" % cluster_id)
-    assert j == "/usr/bin/sleep", "cmd attribute does not match"
+    _test_jobs_queries(cluster_id, "history")
