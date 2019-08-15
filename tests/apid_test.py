@@ -42,9 +42,10 @@ def test_condor_version(fixtures):
 
 
 def test_status(fixtures):
+    j = checked_get_json("v1/status")
+    assert j[0].get("classad"), "config: classad attr missing"
     for daemon in ["collector", "master", "negotiator", "schedd", "startd"]:
-        r = checked_get("v1/status/" + daemon)
-        j = r.json()
+        j = checked_get_json("v1/status/" + daemon)
         for attr in ["name", "classad"]:
             assert j[0].get(attr), "%s: %s attr missing" % (daemon, attr)
 
@@ -77,9 +78,13 @@ def test_jobs(fixtures):
     for q in queries:
         j = checked_get_json(q)
         check_job_attrs(j[0])
+    j = checked_get_json("v1/jobs/%d/0/cmd" % cluster_id)
+    assert j == "/usr/bin/sleep", "cmd attribute does not match"
     rm_cluster(cluster_id)
 
     queries = ["v1/history", "v1/history/%d" % cluster_id, "v1/history/%d/0" % cluster_id]
     for q in queries:
         j = checked_get_json(q)
         check_job_attrs(j[0])
+    j = checked_get_json("v1/history/%d/0/cmd" % cluster_id)
+    assert j == "/usr/bin/sleep", "cmd attribute does not match"
