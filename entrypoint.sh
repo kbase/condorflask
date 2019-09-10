@@ -4,4 +4,4 @@
   fi
   chown kbase /etc/condor/password
   
-  chmod +x run_gunicorn.sh && ./run_gunicorn.sh
+  chmod +x rungunicorn && ./rungunicorn
